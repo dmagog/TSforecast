@@ -1,0 +1,8 @@
+# Pre-commit
+pre-commit>=3.5.0
+
+# Python форматирование и линтинг
+black>=24.1.1
+isort>=5.13.2
+ruff>=0.1.9
+mypy>=1.7.0
