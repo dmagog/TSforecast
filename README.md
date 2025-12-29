@@ -49,7 +49,7 @@
 
 Полная архитектурная схема (SVG) находится в  
 **`docs/ts_forecast_architecture.svg`**
-![Архитектура системы TS Forecast](ts_forecast_architecture.svg)
+![Архитектура системы TS Forecast](docs/ts_forecast_architecture.svg)
 
 ---
 
