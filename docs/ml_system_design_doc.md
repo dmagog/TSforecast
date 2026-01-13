@@ -443,7 +443,7 @@ ML-система обеспечит:
 
 **Пример визуализации качества (EDA):**
 
-![Пример графика по филиалу](eda/graph/А__1001__2024-12.png)
+![Пример графика по филиалу](../eda/graph/А__1001__2024-12.png)
 
 ---
 
@@ -588,7 +588,7 @@ API FastAPI (демо‑контур):
   - `GET /quality/{branch_id}`: 2.29 / 3.02 / 3.31 мс
   - `GET /summary` (100 запросов): 1.96 / 2.92 / 4.50 мс
 
-![Latency chart](docs/load_test_latency.png)
+![Latency chart](load_test_latency.png)
 
 **Таблица результатов (latency):**
 
