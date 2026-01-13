@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD013 MD025 MD029 MD036 -->
 
-# ML System Design Doc — TS Forecast — MVP — Итерация 2
+# ML System Design Doc — TS Forecast — MVP
 
 Шаблон: Reliable ML (RU)
 
