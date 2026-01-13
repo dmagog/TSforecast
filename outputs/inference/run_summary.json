@@ -1,0 +1,19 @@
+{
+  "branches_total": 69,
+  "series_total": 138,
+  "class_counts": {
+    "C": 116,
+    "B": 22
+  },
+  "mvp_better_share_overall": 0.7933884297520661,
+  "mvp_better_share_by_target": {
+    "stoimost_netto_month": 0.819672131147541,
+    "summa_vo_vv_month": 0.7666666666666667
+  },
+  "artifacts": {
+    "forecast_next_month": "outputs/inference/forecast_next_month.csv",
+    "quality_by_branch": "outputs/inference/quality_by_branch.csv",
+    "mvp_vs_baseline": "outputs/inference/mvp_vs_baseline.csv"
+  },
+  "runtime_sec": 31.7
+}
