@@ -8,6 +8,8 @@ if __package__ is None:
     sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 
+import pandas as pd
+
 from inference.pipeline import (
     backtest_baselines,
     backtest_mvp,
@@ -135,19 +137,38 @@ def run_inference() -> dict:
         CONFIG["ci"]["low_confidence_ratio"],
     )
 
+    df_forecast_next_demo = df_forecast_next_best.copy()
+    if not df_forecast_next_demo.empty:
+        df_forecast_next_demo["excluded_from_prod"] = False
+    df_forecast_next_demo_c = select_best_forecast(
+        compare,
+        df_forecast_next,
+        df_mvp_forecast_next,
+        df_quality_final,
+        ci_map,
+        CONFIG["ci"]["low_confidence_ratio"],
+        include_c=True,
+    )
+    if not df_forecast_next_demo_c.empty:
+        df_forecast_next_demo_c["excluded_from_prod"] = (
+            df_forecast_next_demo_c["quality_class"] == "C"
+        )
+        df_forecast_next_demo = pd.concat(
+            [df_forecast_next_demo, df_forecast_next_demo_c], ignore_index=True
+        ).drop_duplicates(subset=["branch_id", "target"])
+
     out_dir = CONFIG["paths"]["output_dir"]
     out_dir.mkdir(parents=True, exist_ok=True)
 
     df_quality_out = df_quality_final.copy()
     df_quality_out["reasons"] = df_quality_out["reasons"].apply(lambda x: ",".join(x))
 
+    active_mask = (df_branch_month[["summa_vo_vv_month", "stoimost_netto_month"]] > 0).any(axis=1)
     active_share = (
-        df_branch_month.groupby("branch_id")
-        .apply(
-            lambda g: ((g[["summa_vo_vv_month", "stoimost_netto_month"]] > 0).any(axis=1)).mean()
-        )
-        .rename("active_share")
-        .reset_index()
+        df_branch_month.assign(active=active_mask)
+        .groupby("branch_id", as_index=False)["active"]
+        .mean()
+        .rename(columns={"active": "active_share"})
     )
     df_quality_out = df_quality_out.merge(active_share, on="branch_id", how="left")
 
@@ -170,6 +191,7 @@ def run_inference() -> dict:
 
     df_quality_out.to_csv(out_dir / "quality_by_branch.csv", index=False)
     df_forecast_next_best.to_csv(out_dir / "forecast_next_month.csv", index=False)
+    df_forecast_next_demo.to_csv(out_dir / "forecast_next_month_demo.csv", index=False)
     compare.to_csv(out_dir / "mvp_vs_baseline.csv", index=False)
 
     if not df_forecast_next.empty:
@@ -196,6 +218,7 @@ def run_inference() -> dict:
         "mvp_better_share_by_target": share_by_target,
         "artifacts": {
             "forecast_next_month": str(out_dir / "forecast_next_month.csv"),
+            "forecast_next_month_demo": str(out_dir / "forecast_next_month_demo.csv"),
             "quality_by_branch": str(out_dir / "quality_by_branch.csv"),
             "mvp_vs_baseline": str(out_dir / "mvp_vs_baseline.csv"),
         },

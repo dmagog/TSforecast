@@ -88,8 +88,10 @@ python3 inference/run_inference.py
 Запуск API для проверки результатов:
 
 ```bash
-uvicorn inference.app:app --reload
+uvicorn inference.app:app --reload --port 8010
 ```
+
+Веб‑интерфейс демо доступен по адресу `http://127.0.0.1:8010/`.
 
 Результаты сохраняются в `outputs/inference/`:
 

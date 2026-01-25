@@ -128,20 +128,20 @@ def safe_mae(y_true: pd.Series, y_pred: pd.Series) -> float:
 
 def compute_metrics(df_backtest: pd.DataFrame) -> pd.DataFrame:
     groups = ["branch_id", "target", "method"]
-    return (
-        df_backtest.dropna(subset=["y_true", "y_pred"])
-        .groupby(groups)
-        .apply(
-            lambda g: pd.Series(
-                {
-                    "mape": safe_mape(g["y_true"], g["y_pred"]),
-                    "mae": safe_mae(g["y_true"], g["y_pred"]),
-                    "n_backtest_points": len(g),
-                }
-            )
+    df = df_backtest.dropna(subset=["y_true", "y_pred"]).copy()
+    rows = []
+    for keys, g in df.groupby(groups):
+        rows.append(
+            {
+                "branch_id": keys[0],
+                "target": keys[1],
+                "method": keys[2],
+                "mape": safe_mape(g["y_true"], g["y_pred"]),
+                "mae": safe_mae(g["y_true"], g["y_pred"]),
+                "n_backtest_points": len(g),
+            }
         )
-        .reset_index()
-    )
+    return pd.DataFrame(rows)
 
 
 def select_best_baseline(
@@ -683,6 +683,7 @@ def select_best_forecast(
     df_quality_final: pd.DataFrame,
     ci_map: dict[tuple[str, str], tuple[float, float]],
     low_confidence_ratio: float,
+    include_c: bool = False,
 ) -> pd.DataFrame:
     best_rows = []
 
@@ -697,7 +698,7 @@ def select_best_forecast(
         if quality_row.empty:
             continue
         quality_row = quality_row.iloc[0]
-        if quality_row["quality_class"] == "C":
+        if quality_row["quality_class"] == "C" and not include_c:
             continue
 
         if isinstance(best_method, str) and best_method.startswith("mvp_"):
