@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TS Forecast Demo</title>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 24px; }
+      .grid { display: grid; grid-template-columns: 320px 1fr; gap: 24px; }
+      .card { border: 1px solid #e1e1e1; border-radius: 8px; padding: 16px; }
+      label { display: block; margin: 12px 0 4px; font-size: 14px; }
+      select, input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+      button { margin-top: 12px; padding: 8px 12px; border: none; background: #111; color: #fff; border-radius: 6px; }
+      .muted { color: #666; font-size: 13px; }
+      .row { display: flex; gap: 16px; flex-wrap: wrap; }
+      .pill { display: inline-block; padding: 4px 8px; background: #f5f5f5; border-radius: 999px; font-size: 12px; }
+      .cards { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+      .card-mini { padding: 6px 8px; border-radius: 6px; color: #111; font-size: 12px; min-width: 68px; }
+      .card-a { background: #d7f5df; }
+      .card-b { background: #fef1c7; }
+      .card-c { background: #fde2e2; }
+      .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .summary-block h3 { margin: 8px 0 6px; }
+      .summary-block table { margin-top: 4px; font-size: 12px; }
+      .summary-block td { padding: 2px 0; }
+      .hist { max-width: 460px; }
+      .tight { margin-top: 4px; }
+      img { max-width: 100%; height: auto; }
+      table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+      td { padding: 4px 0; vertical-align: top; }
+    </style>
+  </head>
+  <body>
+    <h1>TS Forecast — демо</h1>
+    <p class="muted">Выбор филиала, прогноз модели и ввод менеджерского прогноза.</p>
+
+    <div class="grid">
+      <div class="card">
+        <form method="get" action="/" id="forecast-form">
+          <label>Филиал</label>
+          <select name="branch_id" onchange="resetManagerForecast(); document.getElementById('forecast-form').submit()">
+            {% for b in branches %}
+            <option value="{{ b }}" {% if b == branch_id %}selected{% endif %}>
+              {{ b }} ({{ class_by_branch.get(b, "?") }})
+            </option>
+            {% endfor %}
+          </select>
+
+          <label>Таргет</label>
+          <select name="target" onchange="resetManagerForecast(); document.getElementById('forecast-form').submit()">
+            {% for t in targets %}
+            <option value="{{ t }}" {% if t == target %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+
+          <label>Прогноз менеджера</label>
+          <input type="number" id="manager_forecast" name="manager_forecast" step="0.01" value="{{ manager_forecast or '' }}" />
+
+          <button type="submit">Рассчитать</button>
+        </form>
+
+        {% if quality_row is not none %}
+        <h3>Качество</h3>
+        <div class="row">
+          <span class="pill">Класс: {{ quality_row["quality_class"] }}</span>
+          <span class="pill">MAPE: {{ "%.3f"|format(quality_row["mape"]) }}</span>
+        </div>
+        <table>
+          <tr><td class="muted">Причины</td><td>{{ quality_row["reasons"] }}</td></tr>
+          <tr><td class="muted">Active share</td><td>{{ quality_row.get("active_share", "-") }}</td></tr>
+          <tr><td class="muted">EDA months</td><td>{{ quality_row.get("eda_months_count", "-") }}</td></tr>
+        </table>
+        {% endif %}
+
+      </div>
+
+      <div class="card">
+        <h3>Прогноз — филиал {{ branch_id }}</h3>
+        {% if forecast_row is not none %}
+          <div class="row">
+            <span class="pill">Метод: {{ forecast_row["method"] }}</span>
+            <span class="pill">Дата: {{ next_month }}</span>
+            <span class="pill">Low confidence: {{ low_confidence }}</span>
+            {% if excluded_from_prod %}
+            <span class="pill">C‑филиал: прогноз не используется в проде</span>
+            {% endif %}
+          </div>
+          <table>
+            <tr><td class="muted">Прогноз модели</td><td>{{ forecast_row["y_pred"] }}</td></tr>
+            <tr><td class="muted">CI</td><td>{{ forecast_row.get("ci_lower", "-") }} — {{ forecast_row.get("ci_upper", "-") }}</td></tr>
+          </table>
+        {% else %}
+          <p class="muted">Нет прогноза для выбранного филиала.</p>
+        {% endif %}
+
+        {% if plot_b64 %}
+          <img src="data:image/png;base64,{{ plot_b64 }}" alt="forecast plot" />
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+      <h2>Сводки и качество</h2>
+
+      <div class="summary-grid">
+        <div class="summary-block">
+          <h3>Сводка A/B/C (по таргету)</h3>
+          <div class="cards tight">
+            <div class="card-mini card-a">A<br>{{ class_counts.get("A", 0) }} ({{ class_share.get("A", 0) }})</div>
+            <div class="card-mini card-b">B<br>{{ class_counts.get("B", 0) }} ({{ class_share.get("B", 0) }})</div>
+            <div class="card-mini card-c">C<br>{{ class_counts.get("C", 0) }} ({{ class_share.get("C", 0) }})</div>
+          </div>
+
+          <h3>Сводка A/B/C (все)</h3>
+          <div class="cards tight">
+            <div class="card-mini card-a">A<br>{{ class_counts_all.get("A", 0) }} ({{ class_share_all.get("A", 0) }})</div>
+            <div class="card-mini card-b">B<br>{{ class_counts_all.get("B", 0) }} ({{ class_share_all.get("B", 0) }})</div>
+            <div class="card-mini card-c">C<br>{{ class_counts_all.get("C", 0) }} ({{ class_share_all.get("C", 0) }})</div>
+          </div>
+        </div>
+
+        <div class="summary-block">
+          <h3>MAPE — общая</h3>
+          <table>
+            <tr><td class="muted">count</td><td>{{ mape_stats.get("count", "-") }}</td></tr>
+            <tr><td class="muted">mean</td><td>{{ mape_stats.get("mean", "-") }}</td></tr>
+            <tr><td class="muted">min</td><td>{{ mape_stats.get("min", "-") }}</td></tr>
+            <tr><td class="muted">50%</td><td>{{ mape_stats.get("50%", "-") }}</td></tr>
+            <tr><td class="muted">75%</td><td>{{ mape_stats.get("75%", "-") }}</td></tr>
+            <tr><td class="muted">max</td><td>{{ mape_stats.get("max", "-") }}</td></tr>
+          </table>
+
+          <h3>MAPE — по таргетам</h3>
+          <table>
+            <tr>
+              <td class="muted">target</td>
+              <td class="muted">count</td>
+              <td class="muted">mean</td>
+              <td class="muted">50%</td>
+              <td class="muted">max</td>
+            </tr>
+            {% for row in mape_by_target %}
+            <tr>
+              <td>{{ row["target"] }}</td>
+              <td>{{ row["count"] }}</td>
+              <td>{{ row["mean"] }}</td>
+              <td>{{ row["50%"] }}</td>
+              <td>{{ row["max"] }}</td>
+            </tr>
+            {% endfor %}
+          </table>
+        </div>
+      </div>
+
+      {% if mape_hist_b64 %}
+      <h3>MAPE — распределение</h3>
+      <img class="hist" src="data:image/png;base64,{{ mape_hist_b64 }}" alt="mape hist" />
+      {% endif %}
+    </div>
+
+    <script>
+      function resetManagerForecast() {
+        const el = document.getElementById("manager_forecast");
+        if (el) {
+          el.value = "";
+        }
+      }
+    </script>
+  </body>
+</html>
